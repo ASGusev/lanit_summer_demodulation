@@ -37,6 +37,8 @@ if __name__ == '__main__':
     modulator = modulation.Modulator(frequency_shift=args.shift)
     test_samples = generate_samples_per_snr(args.n_samples, args.sample_len, modulator, args.snr)
     test_samples = convert_samples_to_json(test_samples)
-    out_file_name = f'test_data_{",".join(map(str, args.snr))}_{args.n_samples}_{args.sample_len}.json'
+    shift_part = f'sh{int(args.shift * 100)}_'
+    ratios_part = ",".join(map(str, args.snr))
+    out_file_name = f'test_data_{ratios_part}_{shift_part}{args.n_samples}_{args.sample_len}.json'
     with open(out_file_name, 'wt') as out_file:
         json.dump(test_samples, out_file)
