@@ -26,22 +26,19 @@ class Modulator:
         self.n_channels = n_channels
         self.channel_width = (self.max_freq - self.min_freq) // self.n_channels
         self.symbols_per_second = symbols_per_second
-        self.points_per_bit = self.fd // self.symbols_per_second
-        self.fourier_window_size = self.points_per_bit // fourier_windows_in_symbol
+        self.points_per_unit = self.fd // self.symbols_per_second
+        self.fourier_window_size = self.points_per_unit // fourier_windows_in_symbol
         self.fourier_window = np.ones(self.fourier_window_size)
-        self.frequency_shift = int(frequency_shift * self.channel_width) if frequency_shift else None
+        self.channel_frequencies = np.arange(
+            self.min_freq + self.channel_width, self.max_freq + EPS, self.channel_width)
+        if frequency_shift:
+            self.channel_frequencies += frequency_shift * self.channel_width
+        self.channel_deltas = 2 * np.pi * self.channel_frequencies * self.sampling_step
 
     def modulate(self, data):
-        n_points = len(data) * self.points_per_bit
-        sampling_points = np.arange(0, n_points * self.sampling_step - EPS, self.sampling_step)
-
-        base_phase = 2 * np.pi * sampling_points * (self.min_freq + self.channel_width)
-        if self.frequency_shift:
-            base_phase += self.frequency_shift
-        modulation_deltas = np.repeat(data, self.points_per_bit) * self.channel_width
-        delta_phase = np.cumsum(2 * np.pi * modulation_deltas * self.sampling_step)
-        final_phase = base_phase + delta_phase
-        return np.cos(final_phase).astype(np.float32)
+        phase_deltas = np.repeat(self.channel_deltas[data], self.points_per_unit)
+        phase = np.cumsum(phase_deltas)
+        return np.cos(phase).astype(np.float32)
 
     def wave_to_spectrogram(self, wave, cut_f=False, return_f=False):
         f, _, z = stft(wave, self.fd, nperseg=self.fourier_window_size, noverlap=self.fourier_window_size - 1,
