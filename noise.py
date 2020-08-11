@@ -1,5 +1,6 @@
-import numpy as np
 from typing import Union
+
+import numpy as np
 
 
 def gen_white_gaussian_noise(n: int) -> np.ndarray:
