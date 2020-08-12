@@ -13,10 +13,20 @@ SnrSampleSet = Dict[int, List[Tuple[np.ndarray, np.ndarray]]]
 SnrSampleSetWithSGs = Dict[int, List[Tuple[np.ndarray, np.ndarray, np.ndarray]]]
 
 
+def _norm_wave(x):
+    x -= x.mean()
+    x /= x.std()
+
+
+def _norm_spectrogram(x):
+    x -= x.min(axis=0)
+    x /= x.max(axis=0)
+
+
 def get_generator(n_samples: int, sample_len: int, modulator: Modulator,
                   add_noise: Callable[[np.ndarray], np.ndarray] = None,
-                  return_wave: bool = True, return_sg: bool = True) -> \
-            Callable[[], Generator[SignalDataFrame, None, None]]:
+                  return_wave: bool = True, return_sg: bool = True, normalize: bool = False) \
+        -> Callable[[], Generator[SignalDataFrame, None, None]]:
     def gen() -> Generator[SignalDataFrame, None, None]:
         for i in range(n_samples):
             data = np.random.randint(0, modulator.n_channels, sample_len, np.int32)
@@ -26,12 +36,18 @@ def get_generator(n_samples: int, sample_len: int, modulator: Modulator,
             wave = modulator.modulate(data)
             if add_noise is not None:
                 wave = add_noise(wave)
-            x = np.expand_dims(wave, 1) if return_wave else None
+            wave = np.expand_dims(wave, 1)
+            x = wave
 
             if return_sg:
-                spectrogram = modulator.wave_to_spectrogram(wave).T
+                spectrogram = modulator.wave_to_spectrogram(wave.ravel()).T
                 spectrogram = np.expand_dims(spectrogram, 2)
-                x = (x, spectrogram) if return_wave else spectrogram
+                if normalize:
+                    _norm_spectrogram(spectrogram)
+                x = (wave, spectrogram) if return_wave else spectrogram
+
+            if normalize:
+                _norm_wave(wave)
 
             yield x, target_one_hot
     return gen
@@ -39,16 +55,17 @@ def get_generator(n_samples: int, sample_len: int, modulator: Modulator,
 
 def generate_signal(n_samples: int, sample_len: int, modulator: Modulator,
                     add_noise: Callable[[np.ndarray], np.ndarray] = None,
-                    return_wave: bool = True, return_sg: bool = True) -> SignalDataFrame:
+                    return_wave: bool = True, return_sg: bool = True, normalize: bool = False) \
+        -> SignalDataFrame:
     waves, sgs, targets = [], [], []
-    for x, tgt in get_generator(n_samples, sample_len, modulator, add_noise, return_wave, return_sg)():
+    for x, tgt in get_generator(n_samples, sample_len, modulator, add_noise, return_wave, return_sg, normalize)():
         if return_wave:
             waves.append(x[0] if return_sg else x)
         if return_sg:
             sgs.append(x[1] if return_wave else x)
         targets.append(tgt)
-    waves = np.array(waves)
-    sgs = np.array(sgs)
+    waves = np.float32(waves)
+    sgs = np.float32(sgs)
     inputs = ((waves, sgs) if return_sg else waves) if return_wave else sgs
     targets = np.array(targets)
     return inputs, targets
@@ -73,7 +90,7 @@ def load_samples_per_snr(path: Path) -> SnrSampleSet:
         snr_samples = json.load(samples_file)
     return {
         int(snr): [
-            (np.array(data_point['sample'], dtype=np.int32), np.array(data_point['wave'], dtype=np.float32))
+            (np.int32(data_point['sample']), np.float32(data_point['wave']))
             for data_point in samples
         ]
         for snr, samples in snr_samples.items()
@@ -90,16 +107,19 @@ def add_sgs_to_samples(snr_samples: SnrSampleSet, modulator: Modulator) -> SnrSa
     }
 
 
-def preprocess_samples_for_tf(snr_samples: SnrSampleSetWithSGs, modulator: Modulator) -> \
+def preprocess_samples_for_tf(snr_samples: SnrSampleSetWithSGs, modulator: Modulator, normalize: bool = False) -> \
         Dict[int, SignalDataFrame]:
     reordered_snr_samples = {}
     for snr, samples in snr_samples.items():
         waves, sgs, messages = [], [], []
-        for message, wave, sg in samples:
+        for message, wave, spectrogram in samples:
+            if normalize:
+                _norm_wave(wave)
+                _norm_spectrogram(spectrogram)
             waves.append(wave)
-            sgs.append(sg)
+            sgs.append(spectrogram)
             messages.append(message)
-        waves, sgs, messages = np.array(waves), np.array(sgs), np.array(messages)
+        waves, sgs, messages = np.float32(waves), np.float32(sgs), np.int32(messages)
         waves = np.expand_dims(waves, 2)
         sgs = np.expand_dims(sgs, 3)
         messages_one_hot = np.zeros((*messages.shape, modulator.n_channels), dtype=np.float32)
