@@ -1,27 +1,8 @@
 import json
 import argparse
-from typing import Dict, List
 
-import numpy as np
-
-from demodulation.data_preprocessing import generate_samples_per_snr, SnrSampleSet
+from demodulation.data_preprocessing import generate_samples_per_snr, convert_samples_to_json
 import modulation
-
-
-SnrSampleSetJson = Dict[int, List[Dict[str, np.ndarray]]]
-
-
-def convert_samples_to_json(snr_samples: SnrSampleSet) -> SnrSampleSetJson:
-    return {
-        snr: [
-            {
-                'sample': [int(i) for i in sample],
-                'wave': [float(i) for i in wave]
-            }
-            for sample, wave in samples
-        ]
-        for snr, samples in snr_samples.items()
-    }
 
 
 if __name__ == '__main__':
@@ -32,6 +13,7 @@ if __name__ == '__main__':
                             help='Sound-noise ratios to generate samples for')
     arg_parser.add_argument('--shift', type=float, default=None,
                             help='Value that is added to all channels frequencies, as share of the channel width')
+    arg_parser.add_argument('--prefix', default='data/test', help='Prefix of the generated file name')
     args = arg_parser.parse_args()
 
     modulator = modulation.Modulator(frequency_shift=args.shift)
@@ -39,6 +21,6 @@ if __name__ == '__main__':
     test_samples = convert_samples_to_json(test_samples)
     shift_part = f'sh{int(args.shift * 100)}_' if args.shift else ""
     ratios_part = ",".join(map(str, args.snr))
-    out_file_name = f'test_data_{ratios_part}_{shift_part}{args.n_samples}_{args.sample_len}.json'
+    out_file_name = f'{args.prefix}_{ratios_part}_{shift_part}{args.n_samples}_{args.sample_len}.json'
     with open(out_file_name, 'wt') as out_file:
         json.dump(test_samples, out_file)

@@ -10,6 +10,7 @@ from modulation import Modulator
 
 SignalDataFrame = Tuple[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]], np.ndarray]
 SnrSampleSet = Dict[int, List[Tuple[np.ndarray, np.ndarray]]]
+SnrSampleSetJson = Dict[int, List[Dict[str, np.ndarray]]]
 SnrSampleSetWithSGs = Dict[int, List[Tuple[np.ndarray, np.ndarray, np.ndarray]]]
 
 
@@ -83,6 +84,19 @@ def generate_samples_per_snr(n_samples: int, sample_len: int, modulator: Modulat
             samples.append((sample, wave))
         snr_samples[snr] = samples
     return snr_samples
+
+
+def convert_samples_to_json(snr_samples: SnrSampleSet) -> SnrSampleSetJson:
+    return {
+        snr: [
+            {
+                'sample': [int(i) for i in sample],
+                'wave': [float(i) for i in wave]
+            }
+            for sample, wave in samples
+        ]
+        for snr, samples in snr_samples.items()
+    }
 
 
 def load_samples_per_snr(path: Path) -> SnrSampleSet:
