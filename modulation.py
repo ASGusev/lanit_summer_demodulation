@@ -37,6 +37,8 @@ class Modulator:
 
     def modulate(self, data):
         phase_deltas = np.repeat(self.channel_deltas[data], self.points_per_unit)
+        initial_phase = np.random.uniform(0, 2 * np.pi)
+        phase_deltas[0] = initial_phase
         phase = np.cumsum(phase_deltas)
         return np.cos(phase).astype(np.float32)
 
