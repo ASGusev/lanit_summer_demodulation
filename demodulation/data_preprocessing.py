@@ -97,32 +97,20 @@ def load_samples_per_snr(path: Path) -> SnrSampleSet:
     }
 
 
-def add_sgs_to_samples(snr_samples: SnrSampleSet, modulator: Modulator) -> SnrSampleSetWithSGs:
-    return {
-        snr: [
-            (sample, wave, modulator.wave_to_spectrogram(wave).T)
-            for sample, wave in samples
-        ]
-        for snr, samples in snr_samples.items()
-    }
-
-
-def preprocess_samples_for_tf(snr_samples: SnrSampleSetWithSGs, modulator: Modulator, normalize: bool = False) -> \
-        Dict[int, SignalDataFrame]:
-    reordered_snr_samples = {}
-    for snr, samples in snr_samples.items():
-        waves, sgs, messages = [], [], []
-        for message, wave, spectrogram in samples:
-            if normalize:
-                _norm_wave(wave)
-                _norm_spectrogram(spectrogram)
-            waves.append(wave)
-            sgs.append(spectrogram)
-            messages.append(message)
-        waves, sgs, messages = np.float32(waves), np.float32(sgs), np.int32(messages)
-        waves = np.expand_dims(waves, 2)
-        sgs = np.expand_dims(sgs, 3)
-        messages_one_hot = np.zeros((*messages.shape, modulator.n_channels), dtype=np.float32)
-        np.put_along_axis(messages_one_hot, np.expand_dims(messages, 2), 1, axis=2)
-        reordered_snr_samples[snr] = ((waves, sgs), messages_one_hot)
-    return reordered_snr_samples
+def preprocess_samples(samples: List[Tuple[np.ndarray, np.ndarray]], modulator: Modulator, normalize: bool = False) -> \
+        Tuple[Tuple[np.ndarray, np.ndarray], np.ndarray]:
+    waves, sgs, messages = [], [], []
+    for message, wave in samples:
+        spectrogram = modulator.wave_to_spectrogram(wave).T
+        if normalize:
+            _norm_wave(wave)
+            _norm_spectrogram(spectrogram)
+        waves.append(wave)
+        sgs.append(spectrogram)
+        messages.append(message)
+    waves, sgs, messages = np.float32(waves), np.float32(sgs), np.int32(messages)
+    waves = np.expand_dims(waves, 2)
+    sgs = np.expand_dims(sgs, 3)
+    messages_one_hot = np.zeros((*messages.shape, modulator.n_channels), dtype=np.float32)
+    np.put_along_axis(messages_one_hot, np.expand_dims(messages, 2), 1, axis=2)
+    return (waves, sgs), messages_one_hot
