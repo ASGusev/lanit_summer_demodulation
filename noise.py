@@ -10,7 +10,7 @@ def gen_white_gaussian_noise(n: int) -> np.ndarray:
 def add_noise(signal: np.ndarray, noise: np.ndarray, snr: Union[int, float]) -> np.ndarray:
     signal_amplitude = np.std(signal)
     noise_amplitude = np.std(noise)
-    target_noise_amplitude = signal_amplitude / 10 ** (snr / 10)
+    target_noise_amplitude = signal_amplitude / 10 ** (snr / 20)
     noise_adjusted = noise * (target_noise_amplitude / noise_amplitude)
     return signal + noise_adjusted
 
